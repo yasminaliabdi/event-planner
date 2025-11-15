@@ -86,6 +86,32 @@ def update_user_status(user_id: int):
     return jsonify(user_detail_schema.dump(user)), 200
 
 
+@admin_bp.delete("/users/<int:user_id>")
+@jwt_required()
+def delete_user(user_id: int):
+    """Delete a user. Admin only. Cannot delete admin users."""
+    try:
+        _require_admin()
+    except PermissionError:
+        return jsonify({"message": "Administrator access required."}), 403
+
+    user = User.query.get_or_404(user_id)
+    
+    # Prevent deleting admin users
+    if user.role == Role.ADMIN:
+        return jsonify({"message": "Cannot delete administrator accounts."}), 400
+    
+    # Prevent deleting yourself
+    from flask_jwt_extended import get_jwt_identity
+    current_user_id = get_jwt_identity()
+    if current_user_id and int(current_user_id) == user.id:
+        return jsonify({"message": "Cannot delete your own account."}), 400
+    
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"message": "User deleted successfully."}), 200
+
+
 @admin_bp.get("/universities")
 @jwt_required()
 def list_universities():
@@ -112,23 +138,35 @@ def create_university():
 
     payload = request.get_json() or {}
     
-    # Validate user data
-    user_data = user_write_schema.load({
-        "name": payload.get("name"),
-        "email": payload.get("email"),
-        "password": payload.get("password"),
-        "phone": payload.get("phone"),
-        "role": Role.UNIVERSITY,
-    })
+    try:
+        # Validate user data
+        user_data = user_write_schema.load({
+            "name": payload.get("name"),
+            "email": payload.get("email"),
+            "password": payload.get("password"),
+            "phone": payload.get("phone") or None,
+            "role": Role.UNIVERSITY,
+        })
+    except Exception as e:
+        from marshmallow import ValidationError
+        if isinstance(e, ValidationError):
+            return jsonify({"message": "Validation error", "errors": e.messages}), 422
+        return jsonify({"message": "Invalid user data", "errors": str(e)}), 422
     
-    # Validate university profile data
-    university_data = university_write_schema.load({
-        "name": payload.get("university_name") or payload.get("name"),
-        "address": payload.get("address") or None,
-        "contact": payload.get("contact") or None,
-        "description": payload.get("description") or None,
-        "logo_url": payload.get("logo_url") or None,
-    })
+    try:
+        # Validate university profile data
+        university_data = university_write_schema.load({
+            "name": payload.get("university_name") or payload.get("name"),
+            "address": payload.get("address") or None,
+            "contact": payload.get("contact") or None,
+            "description": payload.get("description") or None,
+            "logo_url": payload.get("logo_url") or None,
+        })
+    except Exception as e:
+        from marshmallow import ValidationError
+        if isinstance(e, ValidationError):
+            return jsonify({"message": "Validation error", "errors": e.messages}), 422
+        return jsonify({"message": "Invalid university data", "errors": str(e)}), 422
 
     normalized_email = user_data["email"].lower()
     existing_user = User.query.filter_by(email=normalized_email).first()
@@ -160,6 +198,28 @@ def create_university():
     db.session.commit()
 
     return jsonify(university_detail_schema.dump(university)), 201
+
+
+@admin_bp.delete("/universities/<int:university_id>")
+@jwt_required()
+def delete_university(university_id: int):
+    """Delete a university account. Admin only."""
+    try:
+        _require_admin()
+    except PermissionError:
+        return jsonify({"message": "Administrator access required."}), 403
+
+    university = UniversityProfile.query.get_or_404(university_id)
+    user = university.user
+    
+    # Delete university profile (cascade will handle related data)
+    db.session.delete(university)
+    # Delete the associated user account
+    if user:
+        db.session.delete(user)
+    db.session.commit()
+    
+    return jsonify({"message": "University account deleted successfully."}), 200
 
 
 @admin_bp.get("/events")

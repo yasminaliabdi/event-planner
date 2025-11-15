@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Search, Shield, User as UserIcon, Building2, Ban, CheckCircle, Filter } from 'lucide-react'
+import { Search, Shield, User as UserIcon, Building2, Ban, CheckCircle, Filter, Trash2 } from 'lucide-react'
 
 import { DashboardHeader } from '../../../components/dashboard/DashboardHeader'
-import { getUsers, banUser, type User } from '../../../services/adminService'
+import { getUsers, banUser, deleteUser, type User } from '../../../services/adminService'
 
 export const AdminUsersPage = () => {
   const [users, setUsers] = useState<User[]>([])
@@ -61,6 +61,28 @@ export const AdminUsersPage = () => {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
         'Failed to update user status'
+      alert(message)
+    }
+  }
+
+  const handleDelete = async (userId: number, userName: string, userRole: string) => {
+    if (userRole === 'admin') {
+      alert('Cannot delete administrator accounts.')
+      return
+    }
+
+    if (!confirm(`Are you sure you want to permanently delete user "${userName}"? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      await deleteUser(userId)
+      alert('User deleted successfully.')
+      await loadUsers(currentPage)
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Failed to delete user'
       alert(message)
     }
   }
@@ -209,27 +231,39 @@ export const AdminUsersPage = () => {
                       >
                         {user.is_active ? 'Active' : 'Banned'}
                       </span>
-                      {user.role !== 'admin' && (
-                        <button
-                          onClick={() => handleBanToggle(user.id, user.is_active)}
-                          className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${user.is_active
-                            ? 'border-red-500/40 bg-red-500/20 text-red-300 hover:bg-red-500/30'
-                            : 'border-green-500/40 bg-green-500/20 text-green-300 hover:bg-green-500/30'
-                            }`}
-                        >
-                          {user.is_active ? (
-                            <>
-                              <Ban className="h-4 w-4" />
-                              Ban
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="h-4 w-4" />
-                              Unban
-                            </>
-                          )}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {user.role !== 'admin' && (
+                          <button
+                            onClick={() => handleBanToggle(user.id, user.is_active)}
+                            className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${user.is_active
+                              ? 'border-red-500/40 bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                              : 'border-green-500/40 bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                              }`}
+                          >
+                            {user.is_active ? (
+                              <>
+                                <Ban className="h-4 w-4" />
+                                Ban
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="h-4 w-4" />
+                                Unban
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {user.role !== 'admin' && (
+                          <button
+                            onClick={() => handleDelete(user.id, user.name, user.role)}
+                            className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/20 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/30"
+                            title="Delete user"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <p className="mt-4 text-xs text-slate-400">

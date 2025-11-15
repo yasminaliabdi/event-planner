@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Building2, Mail, Phone, MapPin, Users } from 'lucide-react'
+import { Plus, Building2, Mail, Phone, MapPin, Users, Trash2 } from 'lucide-react'
 
 import { DashboardHeader } from '../../../components/dashboard/DashboardHeader'
 import {
   getUniversities,
   createUniversity,
+  deleteUniversity,
   type University,
 } from '../../../services/adminService'
 
@@ -102,11 +103,16 @@ export const AdminUniversitiesPage = () => {
       if (errorResponse.response?.data?.message) {
         errorMessage = errorResponse.response.data.message
       } else if (errorResponse.response?.data?.errors) {
-        // Format validation errors
-        const errors = Object.entries(errorResponse.response.data.errors)
-          .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+        // Format validation errors with better formatting
+        const errors = errorResponse.response.data.errors
+        const errorList = Object.entries(errors)
+          .map(([field, messages]) => {
+            const fieldName = field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ')
+            const messageList = Array.isArray(messages) ? messages.join(', ') : String(messages)
+            return `• ${fieldName}: ${messageList}`
+          })
           .join('\n')
-        errorMessage = `Validation errors:\n${errors}`
+        errorMessage = `Validation errors:\n\n${errorList}\n\nPlease check:\n- Name must be 2-120 characters\n- Email must be valid\n- Password must be at least 8 characters with uppercase, lowercase, and numbers\n- University name must be 2-200 characters`
       }
       alert(errorMessage)
     }
@@ -124,6 +130,23 @@ export const AdminUniversitiesPage = () => {
       description: '',
       logo_url: '',
     })
+  }
+
+  const handleDelete = async (universityId: number, universityName: string) => {
+    if (!confirm(`Are you sure you want to permanently delete "${universityName}"? This will also delete the associated user account. This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      await deleteUniversity(universityId)
+      alert('University account deleted successfully.')
+      await loadUniversities(currentPage)
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Failed to delete university'
+      alert(message)
+    }
   }
 
   return (
@@ -226,9 +249,19 @@ export const AdminUniversitiesPage = () => {
                       </div>
                     )}
                   </div>
-                  <p className="mt-4 text-xs text-slate-400">
-                    Created {new Date(university.created_at).toLocaleDateString()}
-                  </p>
+                  <div className="mt-4 flex items-center justify-between">
+                    <p className="text-xs text-slate-400">
+                      Created {new Date(university.created_at).toLocaleDateString()}
+                    </p>
+                    <button
+                      onClick={() => handleDelete(university.id, university.name)}
+                      className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/20 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-500/30"
+                      title="Delete university"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Delete
+                    </button>
+                  </div>
                 </motion.div>
               ))}
             </div>

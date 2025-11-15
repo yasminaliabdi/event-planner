@@ -51,6 +51,11 @@ export const banUser = async (userId: number, action: 'ban' | 'unban') => {
   return data
 }
 
+export const deleteUser = async (userId: number) => {
+  const { data } = await api.delete<{ message: string }>(`/admin/users/${userId}`)
+  return data
+}
+
 export type University = {
   id: number
   name: string
@@ -91,6 +96,11 @@ export const createUniversity = async (payload: {
   logo_url?: string
 }) => {
   const { data } = await api.post<University>('/admin/universities', payload)
+  return data
+}
+
+export const deleteUniversity = async (universityId: number) => {
+  const { data } = await api.delete<{ message: string }>(`/admin/universities/${universityId}`)
   return data
 }
 
